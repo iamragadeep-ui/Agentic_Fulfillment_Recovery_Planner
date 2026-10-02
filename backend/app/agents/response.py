@@ -16,5 +16,7 @@ def response_agent(state: dict[str, Any]) -> dict[str, Any]:
         f"The recommended path is: {plan.get('recovery_strategy', 'continue monitoring')}. "
         f"Known facts: {', '.join(evidence) if evidence else 'No explicit evidence available.'}"
     )
+    if state.get("approval_status") == "pending":
+        response += " This plan is pending review by an authorized approver; no recovery action has been executed."
 
     return {"final_response": response, "current_stage": "response", "citations": citations}

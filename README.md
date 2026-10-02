@@ -194,11 +194,24 @@ docker compose up --build
 
 ## Deployment
 
-The project is prepared for deployment in a cloud environment:
+The frontend and backend are deployed as separate Vercel projects:
 
-- Frontend: Vercel-ready Next.js app
-- Backend: Docker-ready FastAPI service for Azure, AWS, Render, or Railway
-- Data layer: PostgreSQL-ready and SQLite-friendly for local development
+- Frontend: `frontend` directory; `NEXT_PUBLIC_API_URL` points to the backend project.
+- Backend: repository root; Vercel uses `backend.app.main:app` from `pyproject.toml` and dependencies from `uv.lock`.
+- Frontend URL: https://frontend-three-sooty-50.vercel.app
+- Backend URL: https://agentic-fulfillment-recovery-planne.vercel.app
+
+Deploy manually with `npx vercel --prod` from `frontend/` for the UI and from the repository root for the API. Git-based automatic deployments are not configured because Vercel could not connect to the GitHub repository. The working tree now includes Clerk verification and PostgreSQL-backed session storage; the current live deployments remain behind SSO while those changes and the internal data adapter are configured.
+
+### Production Configuration
+
+The current Vercel deployments are protected by Vercel SSO while production configuration is being completed. Configure these environment variables before removing that protection:
+
+- Backend: `APP_ENV=production`, a PostgreSQL `DATABASE_URL`, `CLERK_ISSUER`, `CLERK_JWKS_URL`, `CLERK_APPROVER_ROLES`, and `FRONTEND_ORIGIN`.
+- Frontend: `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` and `NEXT_PUBLIC_API_URL`.
+- Fulfillment data: implement and configure the internal API adapter. Production chat/order routes deliberately return `503` rather than use synthetic records until that integration is complete.
+
+Never commit database credentials or identity-provider secrets. Add them through the Vercel project environment settings. The API health endpoint is public; operational endpoints require a valid Clerk bearer token. Recovery plans remain pending until an authorized Clerk organization role records a decision. Recording a decision does not execute carrier, refund, replacement, or inventory actions; those require the internal API adapter and explicit action safeguards.
 
 ## Limitations
 

@@ -1,6 +1,7 @@
 "use client";
 
 import { FormEvent, useState } from "react";
+import { SignInButton, UserButton, useAuth } from "@clerk/nextjs";
 
 type Message = {
   role: "user" | "assistant";
@@ -14,7 +15,10 @@ const initialMessages: Message[] = [
   },
 ];
 
+const apiBaseUrl = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
+
 export default function Home() {
+  const { getToken, isLoaded, isSignedIn } = useAuth();
   const [messages, setMessages] = useState<Message[]>(initialMessages);
   const [query, setQuery] = useState(
     "Order ORD123 was supposed to arrive yesterday but it has not arrived. What should we do?"
@@ -30,11 +34,18 @@ export default function Home() {
     setMessages((current) => [...current, { role: "user", content: query }]);
 
     try {
-      const response = await fetch("http://localhost:8000/api/chat", {
+      const token = await getToken();
+      if (!token) throw new Error("No authenticated session token is available.");
+
+      const response = await fetch(`${apiBaseUrl}/api/chat`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ user_query: query, order_id: orderId, user_id: "ops-user" }),
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ user_query: query, order_id: orderId }),
       });
+      if (!response.ok) throw new Error(`Workflow request failed with status ${response.status}.`);
       const payload = await response.json();
       setResult(payload);
       setStatus("Completed");
@@ -55,6 +66,52 @@ export default function Home() {
     }
   };
 
+  const handleApproval = async (decision: "approve" | "reject" | "modify") => {
+    if (!result?.workflow_id) return;
+
+    setStatus("Recording approval");
+    try {
+      const token = await getToken();
+      if (!token) throw new Error("No authenticated session token is available.");
+
+      const response = await fetch(`${apiBaseUrl}/api/approval/${result.workflow_id}`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ workflow_id: result.workflow_id, decision }),
+      });
+      if (!response.ok) throw new Error(`Approval request failed with status ${response.status}.`);
+      const payload = await response.json();
+      setResult((current: any) => ({ ...current, approval_status: payload.approval_status }));
+      setStatus("Approval recorded");
+    } catch {
+      setStatus("Approval not recorded");
+    }
+  };
+
+  if (!isLoaded) {
+    return <main className="min-h-screen bg-slate-950 p-8 text-slate-100">Loading sign-in...</main>;
+  }
+
+  if (!isSignedIn) {
+    return (
+      <main className="flex min-h-screen items-center justify-center bg-slate-950 p-6 text-slate-100">
+        <section className="w-full max-w-md rounded-xl border border-slate-800 bg-slate-900 p-8">
+          <p className="text-xs uppercase text-cyan-400">Fulfillment operations</p>
+          <h1 className="mt-3 text-2xl font-semibold">Sign in to continue</h1>
+          <p className="mt-2 text-sm text-slate-300">Use your organization account to access the recovery console.</p>
+          <SignInButton mode="modal">
+            <button type="button" className="mt-6 rounded-lg bg-cyan-500 px-4 py-2 font-medium text-slate-950">
+              Sign in
+            </button>
+          </SignInButton>
+        </section>
+      </main>
+    );
+  }
+
   return (
     <main className="min-h-screen bg-slate-950 text-slate-100">
       <div className="mx-auto max-w-7xl p-6">
@@ -66,6 +123,7 @@ export default function Home() {
           <div className="rounded-full border border-emerald-500/40 bg-emerald-500/10 px-3 py-1 text-sm text-emerald-300">
             {status}
           </div>
+          <UserButton />
         </header>
 
         <div className="grid gap-6 lg:grid-cols-[1.5fr_0.9fr]">
@@ -153,11 +211,20 @@ export default function Home() {
                 <p>Proposed action: {result?.recovery_plan?.actions?.join(", ") ?? "Awaiting plan"}</p>
                 <p>Confidence: {result?.recovery_plan?.estimated_confidence ?? "0"}</p>
                 <p>Risk: {result?.recovery_plan?.risk_level ?? "unknown"}</p>
+                <p>Decision: {result?.approval_status ?? "No review pending"}</p>
               </div>
               <div className="mt-4 flex gap-2">
-                <button className="rounded-lg bg-emerald-500 px-3 py-2 text-sm font-medium text-slate-900">Approve</button>
-                <button className="rounded-lg bg-rose-500 px-3 py-2 text-sm font-medium text-white">Reject</button>
-                <button className="rounded-lg bg-slate-700 px-3 py-2 text-sm font-medium text-white">Modify</button>
+                {(["approve", "reject", "modify"] as const).map((decision) => (
+                  <button
+                    key={decision}
+                    type="button"
+                    disabled={!result?.workflow_id || !result?.recovery_plan?.human_approval_required || result?.approval_status !== "pending"}
+                    onClick={() => handleApproval(decision)}
+                    className="rounded-lg bg-slate-700 px-3 py-2 text-sm font-medium text-white disabled:cursor-not-allowed disabled:opacity-40"
+                  >
+                    {decision[0].toUpperCase() + decision.slice(1)}
+                  </button>
+                ))}
               </div>
             </div>
           </aside>

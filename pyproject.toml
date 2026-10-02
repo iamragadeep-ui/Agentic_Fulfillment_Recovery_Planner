@@ -1,0 +1,17 @@
+[project]
+name = "agentic-fulfillment-recovery-planner"
+version = "0.1.0"
+requires-python = ">=3.12"
+dependencies = [
+	"fastapi==0.115.12",
+	"langgraph==0.5.4",
+	"openai==1.99.5",
+	"pydantic==2.11.7",
+	"pydantic-settings==2.6.1",
+	"PyJWT[crypto]==2.15.1",
+	"SQLAlchemy==2.0.41",
+	"psycopg2-binary==2.9.10",
+]
+
+[tool.vercel]
+entrypoint = "backend.app.main:app"

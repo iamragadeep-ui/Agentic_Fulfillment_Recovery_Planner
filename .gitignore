@@ -10,3 +10,4 @@ node_modules/
 backend/.pytest_cache/
 backend/app/data/chroma/
 backend/app/uploads/
+.vercel
